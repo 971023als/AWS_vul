@@ -1,54 +1,47 @@
 #!/bin/bash
 
-# Initialize diagnostic results and current status
-category="로그 관리"
-code="U-72"
-severity="하"
-check_item="정책에 따른 시스템 로깅 설정"
-result="N/A"  # 수동 확인 필요
-declare -a status
-recommendation="로그 기록 정책 설정 및 보안 정책에 따른 로그 관리"
+{
+  "분류": "운영 관리",
+  "코드": "4.12",
+  "위험도": "중요도 중",
+  "진단_항목": "로그 보관 기간 설정",
+  "대응방안": {
+    "설명": "CloudWatch Logs에 저장되는 로그 데이터는 기본적으로 무기한 저장되므로, 기업 내부 정책 및 컴플라이언스 준수 등에 부합하도록 로그 데이터 저장 기간을 설정해야 합니다. AWS Management 콘솔의 CloudWatch 로그 그룹에서 저장 기간 설정이 가능합니다. 국내 클라우드 보안인증제 및 개인정보의 안전성 확보 조치 기준에 따라 보안감사 로그와 접근 기록은 최소 1년 이상 보존해야 합니다.",
+    "설정방법": [
+      "CloudTrail 대시보드 진입",
+      "CloudTrail 로그 그룹 진입 및 보존 기간 확인",
+      "CloudTrail 보존 설정 편집 버튼 클릭",
+      "CloudTrail 보존 설정 기간 설정",
+      "CloudTrail 보존 설정 기간 정책에 맞게 설정 완료"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"  // '취약'으로 업데이트 가능
+}
 
-filename="/etc/rsyslog.conf"
-expected_content=(
-    "*.info;mail.none;authpriv.none;cron.none /var/log/messages"
-    "authpriv.* /var/log/secure"
-    "mail.* /var/log/maillog"
-    "cron.* /var/log/cron"
-    "*.alert /dev/console"
-    "*.emerg *"
-)
 
-# Check for the existence of the logging file
-if [ ! -e "$filename" ]; then
-    result="취약"
-    status+=("$filename 파일이 존재하지 않습니다.")
+# List CloudWatch Logs groups and their retention policies
+log_groups_output=$(aws logs describe-log-groups --query 'logGroups[*].[logGroupName, retentionInDays]' --output text)
+if [ $? -eq 0 ]; then
+    echo "Retrieved log groups and retention settings:"
+    echo "$log_groups_output"
 else
-    # Check the contents of the logging file
-    content_mismatch=false
-    for content in "${expected_content[@]}"; do
-        if ! grep -Fxq "$content" "$filename"; then
-            content_mismatch=true
-            result="취약"
-            status+=("$filename 파일의 내용이 잘못되었습니다.")
-            break
-        fi
-    done
-
-    if [ "$content_mismatch" = false ]; then
-        result="양호"
-        status+=("$filename 파일의 내용이 정확합니다.")
-    fi
+    echo "Failed to retrieve log groups."
+    exit 1
 fi
 
-# Print the results
-echo "분류: $category"
-echo "코드: $code"
-echo "위험도: $severity"
-echo "진단 항목: $check_item"
-echo "진단 결과: $result"
-echo "현황:"
-for i in "${status[@]}"; do
-    echo "- $i"
-done
-echo "대응방안: $recommendation"
+# User prompt to check a specific CloudWatch Log Group for retention settings
+read -p "Enter Log Group name to check retention policy: " log_group_name
+
+# Check retention policy of the specific log group
+retention_policy_output=$(aws logs describe-log-groups --log-group-name-prefix "$log_group_name" --query 'logGroups[*].[logGroupName, retentionInDays]' --output json)
+if [ $? -eq 0 ]; then
+    if [ "$(echo "$retention_policy_output" | jq -r '.[].retentionInDays')" -ge 365 ]; then
+        echo "Log Group '$log_group_name' meets the minimum retention policy of 1 year."
+    else
+        echo "Log Group '$log_group_name' does not meet the minimum retention policy of 1 year."
+    fi
+else
+    echo "Failed to retrieve retention policy for Log Group '$log_group_name'."
+    exit 1
+fi
