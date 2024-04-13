@@ -1,3 +1,9 @@
+#!/bin/bash
+
+# 모든 인스턴스의 ID와 Key Pair 이름 가져오기
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,KeyName]' --output text
+
+
 {
   "분류": "계정 관리",
   "코드": "1.5",
@@ -19,3 +25,29 @@
   "현황": [],
   "진단_결과": "양호"
 }
+
+# List all instances and their Key Pairs
+instances_output=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,KeyName]' --output text)
+if [ $? -eq 0 ]; then
+    echo "$instances_output"
+else
+    echo "Failed to retrieve instances."
+    exit 1
+fi
+
+# User prompt to check a specific Key Pair
+read -p "Enter Key Pair name to check: " key_pair_name
+
+# Check existence of the Key Pair
+key_pair_output=$(aws ec2 describe-key-pairs --key-names "$key_pair_name" --query 'KeyPairs' --output json)
+if [ $? -eq 0 ]; then
+    key_pair_exists=$(echo "$key_pair_output" | jq '. | length')
+    if [ "$key_pair_exists" -eq "1" ]; then
+        echo "Key Pair '$key_pair_name' is properly registered."
+    else
+        echo "Key Pair '$key_pair_name' is not registered or does not exist."
+    fi
+else
+    echo "Failed to retrieve Key Pair information."
+    exit 1
+fi
