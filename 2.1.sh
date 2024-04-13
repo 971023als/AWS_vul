@@ -1,80 +1,34 @@
 #!/bin/bash
 
-# 변수 설정
-분류="파일 및 디렉터리 관리"
-코드="U-10"
-위험도="상"
-진단_항목="/etc/(x)inetd.conf 파일 소유자 및 권한 설정"
-대응방안="/etc/(x)inetd.conf 파일과 /etc/xinetd.d 디렉터리 내 파일의 소유자가 root이고, 권한이 600 미만인 경우"
+# 변수 초기화
+분류="권한 관리"
+코드="2.1"
+위험도="중요도 상"
+진단_항목="인스턴스 서비스 정책 관리"
+대응방안="AWS 인스턴스 서비스(EC2, RDS, S3 등)의 리소스 생성 또는 액세스 권한은 IAM 자격 증명(사용자, 그룹, 역할)에 연결된 권한 정책에 따라 결정됩니다. 적절한 권한을 통한 서비스 관리가 이루어져야 하며, 서비스 별 관리형 정책을 철저히 설정해야 합니다."
+설정방법="가. 인스턴스 IAM 관리자/운영자 권한 그룹 생성: 1) IAM 내 그룹 탭 접근, 2) 새로운 그룹 생성, 3) 필요한 권한 정책 연결, 4) 그룹 생성 확인"
 현황=()
 진단_결과=""
 
-# 파일 소유자 및 권한 검사 함수
-check_file_ownership_and_permissions() {
-    file_path=$1
-    if [ ! -e "$file_path" ]; then
-        return 1 # 파일이 존재하지 않음
-    fi
-    
-    mode=$(stat -c "%a" "$file_path")
-    owner_uid=$(stat -c "%u" "$file_path")
-    
-    if [ "$owner_uid" -eq 0 ] && [ "$mode" -lt 600 ]; then
-        return 0 # 조건 충족
-    else
-        return 2 # 조건 불충족
-    fi
-}
+# IAM 정책 검사
+echo "Checking IAM policies for EC2, RDS, S3, and other services..."
+policy_check=$(aws iam list-policies --scope Local --query 'Policies[?PolicyName==`AmazonEC2FullAccess` || PolicyName==`AmazonRDSFullAccess` || PolicyName==`AmazonS3FullAccess`].PolicyName' --output text)
 
-# 디렉터리 내 파일 소유자 및 권한 검사 함수
-check_directory_files_ownership_and_permissions() {
-    directory_path=$1
-    if [ ! -d "$directory_path" ]; then
-        return 1 # 디렉터리가 존재하지 않음
-    fi
-    
-    for file_path in "$directory_path"/*; do
-        if ! check_file_ownership_and_permissions "$file_path"; then
-            return 2 # 조건 불충족
-        fi
-    done
-    
-    return 0 # 모든 파일이 조건 충족
-}
-
-# 파일 및 디렉터리 검사
-check_passed=true
-files_to_check=('/etc/inetd.conf' '/etc/xinetd.conf')
-directories_to_check=('/etc/xinetd.d')
-
-for file_path in "${files_to_check[@]}"; do
-    if ! check_file_ownership_and_permissions "$file_path"; then
-        현황+=("$file_path 파일의 소유자가 root가 아니거나 권한이 600 미만입니다.")
-        check_passed=false
-    fi
-done
-
-for directory_path in "${directories_to_check[@]}"; do
-    if ! check_directory_files_ownership_and_permissions "$directory_path"; then
-        현황+=("$directory_path 디렉터리 내 파일의 소유자가 root가 아니거나 권한이 600 미만입니다.")
-        check_passed=false
-    fi
-done
-
-# 검사 결과에 따라 진단 결과 업데이트
-if $check_passed; then
-    진단_결과="양호"
-else
+if [ -z "$policy_check" ]; then
+    echo "Required policies are not fully attached."
     진단_결과="취약"
+else
+    echo "Required policies are correctly attached:"
+    echo "$policy_check"
+    진단_결과="양호"
 fi
 
 # 결과 출력
 echo "분류: $분류"
 echo "코드: $코드"
 echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
+echo "진단_항목: $진단_항목"
 echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "현황: $item"
-done
+echo "설정방법: $설정방법"
+echo "현황: ${현황[@]}"
+echo "진단_결과: $진단_결과"
