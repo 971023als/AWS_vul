@@ -1,31 +1,48 @@
 #!/bin/bash
 
-# 변수 설정
-분류="서비스 관리"
-코드="U-26"
-위험도="상"
-진단_항목="automountd 제거"
-대응방안="automountd 서비스 비활성화"
-현황=()
+# Initialize variables simulating JSON data structure
+declare -A diagnostic_data=(
+    [분류]="가상 리소스 관리"
+    [코드]="3.4"
+    [위험도]="중요도 중"
+    [진단_항목]="라우팅 테이블 정책 관리"
+    [대응방안]="라우팅 테이블에는 네트워크 트래픽을 전달할 위치 결정 시 사용되는 규칙입니다. VPC의 각 서브넷을 라우팅 테이블에 연결해야 하며, 테이블에서는 서브넷에 대한 라우팅을 제어하게 됩니다. 기본 라우팅 테이블은 다른 라우팅 테이블과 명시적으로 연결되지 않은 모든 서브넷에 대한 라우팅을 제어합니다."
+    [설정방법]="VPC 내 라우팅 테이블 탭 접근 후 라우팅 편집 클릭, 라우팅 테이블 설정 및 저장"
+    [진단_기준]="양호기준: 라우팅 테이블 내 ANY 정책이 설정되어 있지 않고 서비스 타깃 별로 설정되어 있을 경우, 취약기준: 라우팅 테이블 내 ANY 정책이 설정되어 있거나 서비스 타깃 별로 설정되어 있지 않을 경우"
+    [현황]="[]"
+    [진단_결과]="진단 필요"
+)
 
-# automountd 또는 autofs 서비스 실행 상태 확인
-if ps -ef | grep -iE '[a]utomount|[a]utofs' &> /dev/null; then
-    # automountd 또는 autofs 서비스가 실행 중임
-    진단_결과="취약"
-    현황+=("automountd 서비스가 실행 중입니다.")
+echo "Fetching Routing Tables..."
+
+# Retrieve all Routing Tables
+routing_tables_output=$(aws ec2 describe-route-tables --query 'RouteTables[*].[RouteTableId, Routes]' --output text)
+echo "Available Routing Tables:"
+echo "$routing_tables_output"
+
+# User prompt to select a specific Routing Table
+read -p "Enter Routing Table ID to check policies: " rt_id
+
+# Display the selected Routing Table's policies
+echo "Routing Table Policies:"
+aws ec2 describe-route-tables --route-table-id "$rt_id" --query 'RouteTables[*].Routes' --output json
+
+# Assessing the Routing Table policies based on user checks
+echo "Review the policies displayed above."
+read -p "Does this Routing Table contain ANY policies or lacks service target specific policies? (yes/no): " policy_check
+
+if [ "$policy_check" = "yes" ]; then
+    echo "Routing Table contains ANY policies or lacks service target specific policies. It is vulnerable."
+    diagnostic_data[진단_결과]="취약"
 else
-    # automountd 또는 autofs 서비스가 실행 중이지 않음
-    진단_결과="양호"
-    현황+=("automountd 서비스가 비활성화되어 있습니다.")
+    echo "Routing Table policies are appropriate without ANY policies and are service target specific. It is satisfactory."
+    diagnostic_data[진단_결과]="양호"
 fi
 
-# 결과 출력
-echo "분류: $분류"
-echo "코드: $코드"
-echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
-echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "$item"
+# Output final assessment
+echo "진단 결과: ${diagnostic_data[진단_결과]}"
+
+# Output all diagnostic data
+for key in "${!diagnostic_data[@]}"; do
+    echo "$key: ${diagnostic_data[$key]}"
 done
