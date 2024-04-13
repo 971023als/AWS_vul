@@ -1,56 +1,54 @@
 #!/bin/bash
 
-# 초기 진단 결과 및 현황 설정
-category="서비스 관리"
-code="U-63"
-severity="하"
-check_item="ftpusers 파일 소유자 및 권한 설정"
-result=""
-declare -a status
-recommendation="ftpusers 파일의 소유자를 root로 설정하고, 권한을 640 이하로 설정"
-file_checked_and_secure=false
+{
+  "분류": "운영 관리",
+  "코드": "4.15",
+  "위험도": "중요도 중",
+  "진단_항목": "EKS Cluster 암호화 설정",
+  "대응방안": {
+    "설명": "Kubernetes 비밀(Secret)은 비밀번호, 토큰, 키와 같은 소량의 민감한 데이터를 포함하는 객체이며 기본적으로 API 서버의 기본 데이터 저장소(etcd)에 암호화되지 않은 상태로 저장됩니다. 비밀 암호화를 활성화하면 AWS Key Management Service(AWS KMS) 키를 사용하여 Cluster의 etcd에 저장된 Kubernetes 비밀 암호화를 제공합니다. 이는 사용자가 정의하고 관리하는 AWS KMS 키로 Kubernetes 비밀을 암호화하여 Kubernetes 애플리케이션에 대한 안전한 배포를 할 수 있습니다.",
+    "설정방법": [
+      "EKS Cluster 내 [개요] – [암호 암호화] 설정 확인",
+      "KMS 키 적용 후 암호 활성화",
+      "암호 암호화 설정 시 유의 사항 확인 후 활성화 시도",
+      "암호 암호화 설정 확인"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"  // '취약'으로 업데이트 가능
+}
 
-# 검사할 ftpusers 파일 목록
-ftpusers_files=(
-    "/etc/ftpusers" "/etc/pure-ftpd/ftpusers" "/etc/wu-ftpd/ftpusers"
-    "/etc/vsftpd/ftpusers" "/etc/proftpd/ftpusers" "/etc/ftpd/ftpusers"
-    "/etc/vsftpd.ftpusers" "/etc/vsftpd.user_list" "/etc/vsftpd/user_list"
-)
 
-for ftpusers_file in "${ftpusers_files[@]}"; do
-    if [ -f "$ftpusers_file" ]; then
-        file_checked_and_secure=true
-        owner=$(stat -c "%U" "$ftpusers_file")
-        permissions=$(stat -c "%a" "$ftpusers_file")
-
-        # 소유자가 root가 아니거나 권한이 640보다 큰 경우
-        if [ "$owner" != "root" ] || [ "$permissions" -gt 640 ]; then
-            result="취약"
-            [ "$owner" != "root" ] && status+=("$ftpusers_file 파일의 소유자(owner)가 root가 아닙니다.")
-            [ "$permissions" -gt 640 ] && status+=("$ftpusers_file 파일의 권한이 640보다 큽니다.")
+# List all EKS clusters and their encryption settings
+eks_clusters_output=$(aws eks list-clusters --query 'clusters[*]' --output text)
+if [ $? -eq 0 ]; then
+    echo "Retrieved EKS clusters:"
+    for cluster in $eks_clusters_output; do
+        echo "Checking encryption for cluster: $cluster"
+        encryption_status=$(aws eks describe-cluster --name $cluster --query 'cluster.encryptionConfig[*].resources' --output json)
+        if [[ "$encryption_status" == "[]" ]]; then
+            echo "Cluster '$cluster' does not have encryption enabled."
+        else
+            echo "Cluster '$cluster' has encryption enabled with resources: $encryption_status"
         fi
-    fi
-done
-
-# 파일 검사 후 취약하지 않은 경우 양호로 설정
-if [ ${#status[@]} -eq 0 ]; then
-    if $file_checked_and_secure; then
-        result="양호"
-        status=("모든 ftpusers 파일이 적절한 소유자 및 권한 설정을 가지고 있습니다.")
-    else
-        result="취약"
-        status=("ftp 접근제어 파일이 없습니다.")
-    fi
+    done
+else
+    echo "Failed to retrieve EKS clusters."
+    exit 1
 fi
 
-# 결과 출력
-echo "분류: $category"
-echo "코드: $code"
-echo "위험도: $severity"
-echo "진단 항목: $check_item"
-echo "진단 결과: $result"
-echo "현황:"
-for i in "${status[@]}"; do
-    echo "- $i"
-done
-echo "대응방안: $recommendation"
+# User prompt to check a specific EKS cluster for encryption settings
+read -p "Enter EKS Cluster name to check encryption settings: " eks_cluster_name
+
+# Check encryption settings for the specific EKS cluster
+encryption_details=$(aws eks describe-cluster --name "$eks_cluster_name" --query 'cluster.encryptionConfig' --output json)
+if [ $? -eq 0 ]; then
+    if [ -n "$encryption_details" ]; then
+        echo "EKS Cluster '$eks_cluster_name' has the following encryption settings enabled: $encryption_details"
+    else
+        echo "EKS Cluster '$eks_cluster_name' does not have encryption settings enabled."
+    fi
+else
+    echo "Failed to retrieve encryption settings for EKS Cluster '$eks_cluster_name'."
+    exit 1
+fi
