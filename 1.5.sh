@@ -1,66 +1,21 @@
-#!/bin/bash
-
-분류="파일 및 디렉터리 관리"
-코드="U-05"
-위험도="상"
-진단_항목="root홈, 패스 디렉터리 권한 및 패스 설정"
-대응방안="PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되지 않도록 설정"
-현황=()
-
-global_files=(
-    "/etc/profile"
-    "/etc/.login"
-    "/etc/csh.cshrc"
-    "/etc/csh.login"
-    "/etc/environment"
-)
-
-user_files=(
-    ".profile"
-    ".cshrc"
-    ".login"
-    ".kshrc"
-    ".bash_profile"
-    ".bashrc"
-    ".bash_login"
-)
-
-# 글로벌 설정 파일 검사
-for file in "${global_files[@]}"; do
-    if [ -f "$file" ]; then
-        if grep -Eq '\b\.\b|(^|:)\.(:|$)' "$file"; then
-            현황+=("$file 파일 내에 PATH 환경 변수에 '.' 또는 중간에 '::' 이 포함되어 있습니다.")
-        fi
-    fi
-done
-
-# 사용자 홈 디렉터리 설정 파일 검사
-while IFS=: read -r username _ _ _ _ homedir _; do
-    for user_file in "${user_files[@]}"; do
-        file_path="$homedir/$user_file"
-        if [ -f "$file_path" ]; then
-            if grep -Eq '\b\.\b|(^|:)\.(:|$)' "$file_path"; then
-                현황+=("$file_path 파일 내에 PATH 환경 변수에 '.' 또는 '::' 이 포함되어 있습니다.")
-            fi
-        fi
-    done
-done < /etc/passwd
-
-# 진단 결과 설정
-if [ ${#현황[@]} -eq 0 ]; then
-    진단_결과="양호"
-else
-    진단_결과="취약"
-fi
-
-# 결과 출력
-echo "분류: $분류"
-echo "코드: $코드"
-echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
-echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-echo "현황:"
-for 사항 in "${현황[@]}"; do
-    echo "- $사항"
-done
+{
+  "분류": "계정 관리",
+  "코드": "1.5",
+  "위험도": "중요도 상",
+  "진단_항목": "Key Pair 접근 관리",
+  "대응방안": {
+    "설명": "EC2는 키(Key)를 이용한 암호화 기법을 제공합니다. 해당 기법은 퍼블릭/프라이빗 키를 통해 각각 데이터의 암호화 및 해독을 하는 방식으로, 여기에 사용되는 키를 'Key Pair'라고 하며, 해당 암호화 기법을 사용할 시 EC2의 보안성을 향상시킬 수 있습니다. EC2 인스턴스 생성 시 Key Pair 등록을 권장합니다. 또한, Amazon EC2에 사용되는 키는 '2048비트 SSH-2 RSA 키'이며, Key Pair는 리전당 최대 5천 개까지 보유할 수 있습니다.",
+    "설정방법": [
+      "콘솔을 통한 키 생성: 네트워크 및 보안 → Key Pair → Key Pair 생성",
+      "생성된 Key Pair 파일을 쉽게 유추 및 접근할 수 없는 공간에 보관",
+      "인스턴스 생성 시 생성된 Key Pair 등록",
+      "인스턴트 생성 완료 시 Key Pair 정상 등록여부 확인",
+      "PuTTY-Gen을 통한 키 생성: PuTTYGen.exe → Conversions → Import Key → Save 퍼블릭/프라이빗 Key",
+      "생성된 Key Pair 파일을 쉽게 유추 및 접근할 수 없는 공간에 보관",
+      "생성된 키 콘솔로 가져오기: 네트워크 및 보안 → Key Pair → Key Pair 가져오기",
+      "생성된 키가 콘솔에 정상적으로 등록되었는지 확인"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"
+}
