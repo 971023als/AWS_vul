@@ -1,43 +1,73 @@
 #!/bin/bash
 
-# 변수 설정
-분류="서비스 관리"
-코드="U-32"
-위험도="상"
-진단_항목="일반사용자의 Sendmail 실행 방지"
-대응방안="SMTP 서비스 미사용 또는 일반 사용자의 Sendmail 실행 방지 설정"
-현황=()
-restriction_set=false
+{
+  "분류": "운영 관리",
+  "코드": "4.1",
+  "위험도": "중요도 중",
+  "진단_항목": "EBS 및 볼륨 암호화 설정",
+  "대응방안": {
+    "설명": "EBS는 EC2 인스턴스 생성 및 이용 시 사용되는 블록 형태의 스토리지 볼륨이며, AES-256 알고리즘을 사용하여 볼륨 암호화를 지원합니다. 이는 데이터 및 애플리케이션에 대한 보안을 강화하여 안전하게 정보를 저장할 수 있게 해줍니다.",
+    "설정방법": [
+      "인스턴스 시작 클릭",
+      "AMI 선택",
+      "인스턴스 유형 선택",
+      "인스턴스 구성",
+      "스토리지 추가",
+      "태그 추가",
+      "보안 그룹 구성",
+      "스토리지 암호화 여부 확인",
+      "EC2 인스턴스 클릭 및 스토리지 클릭",
+      "스토리지 암호화 설정여부 확인",
+      "Elastic Block Store 메뉴 내 볼륨 기능 선택",
+      "볼륨 생성 메뉴 내 '암호화' 활성화 후 KMS 키 값을 추가하여 설정"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"
+}
 
-# sendmail.cf 파일들 찾기 및 restrictqrun 옵션 검사
-find / -name 'sendmail.cf' -type f 2>/dev/null | while read -r file_path; do
-    if grep -q 'restrictqrun' "$file_path" && ! grep -q '^#' "$file_path"; then
-        현황+=("$file_path 파일에 restrictqrun 옵션이 설정되어 있습니다.")
-        restriction_set=true
-        break # 하나라도 찾으면 나머지 검사 중단
-    fi
-done
 
-# 진단 결과 결정
-if $restriction_set; then
-    진단_결과="양호"
-    if [ ${#현황[@]} -eq 0 ]; then
-        현황+=("모든 sendmail.cf 파일에 restrictqrun 옵션이 적절히 설정되어 있습니다.")
-    fi
-else
-    진단_결과="취약"
-    if [ ${#현황[@]} -eq 0 ]; then
-        현황+=("sendmail.cf 파일 중 restrictqrun 옵션이 설정되어 있지 않은 파일이 있습니다.")
-    fi
+# Check for aws CLI tools
+if ! command -v aws &> /dev/null; then
+    echo "AWS CLI is not installed. Please install AWS CLI to run this script."
+    exit 1
 fi
 
-# 결과 출력
-echo "분류: $분류"
-echo "코드: $코드"
-echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
-echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "$item"
+# List all EBS volumes with their encryption status
+echo "Retrieving EBS volumes and encryption status..."
+ebs_volumes_output=$(aws ec2 describe-volumes --query 'Volumes[*].{VolumeId:VolumeId, Encrypted:Encrypted}' --output json)
+if [ $? -ne 0 ]; then
+    echo "Failed to retrieve EBS volumes. Please check your AWS CLI setup and permissions."
+    exit 1
+fi
+
+if [ -z "$ebs_volumes_output" ]; then
+    echo "No EBS volumes found."
+    exit 0
+fi
+
+echo "EBS Volumes found:"
+echo "$ebs_volumes_output"
+
+# Analyze the encryption status for compliance
+compliance_status="양호"  # Assume all volumes must be encrypted for a '양호' status
+echo "Analyzing encryption status of EBS volumes..."
+for row in $(echo "${ebs_volumes_output}" | jq -r '.[] | @base64'); do
+    _jq() {
+     echo ${row} | base64 --decode | jq -r ${1}
+    }
+    volume_id=$(_jq '.VolumeId')
+    encrypted=$(_jq '.Encrypted')
+    if [ "$encrypted" == "false" ]; then
+        echo "Volume $volume_id is not encrypted."
+        compliance_status="취약"
+        break
+    fi
 done
+
+echo "Encryption compliance status: $compliance_status"
+
+# Update JSON diagnostic result directly using jq and sponge
+echo "Updating diagnosis result..."
+jq --arg status "$compliance_status" '.진단_결과 = $status' diagnosis.json | sponge diagnosis.json
+echo "Diagnosis updated with result: $compliance_status"
