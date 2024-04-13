@@ -1,55 +1,32 @@
 #!/bin/bash
 
-# 변수 설정
-분류="서비스 관리"
-코드="U-22"
-위험도="상"
-진단_항목="crond 파일 소유자 및 권한 설정"
-대응방안="crontab 명령어 일반사용자 금지 및 cron 관련 파일 640 이하 권한 설정"
+# 변수 초기화
+분류="계정 관리"
+코드="1.12"
+위험도="중요도 중"
+진단_항목="EKS 서비스 어카운트 관리"
+대응방안="서비스 어카운트는 파드에 쿠버네티스 RBAC 역할을 할당할 수 있는 특수한 유형의 개체입니다. Cluster 내의 각 네임스페이스에 기본 서비스 어카운트가 자동으로 생성되며, 특정 서비스 어카운트를 참조하지 않고 네임스페이스에 파드를 배포하면, 해당 네임스페이스의 파드에 자동으로 할당됩니다. AutomountServiceAccountToken 속성을 false로 설정하여 불필요한 토큰 마운트를 방지해야 합니다."
+설정방법="가. 서비스 어카운트 토큰 자동 마운트 비활성화: 1) 서비스 어카운트 토큰 자동 마운트 비활성화 여부 확인, 2) 서비스 어카운트 토큰 자동 마운트 비활성화 (false) 설정 및 확인"
 현황=()
+진단_결과=""
 
-# crontab 명령어 권한 검사
-crontab_paths=("/usr/bin/crontab" "/usr/sbin/crontab" "/bin/crontab")
-for path in "${crontab_paths[@]}"; do
-    if [ -e "$path" ]; then
-        permission=$(stat -c "%a" "$path")
-        if [ "$permission" -gt 750 ]; then
-            현황+=("$path 명령어의 권한이 750보다 큽니다.")
-            진단_결과="취약"
-        fi
-        break
-    fi
-done
+# 서비스 어카운트 토큰 자동 마운트 설정 확인
+automount_status=$(kubectl get serviceaccount default -n kube-system -o json | jq '.automountServiceAccountToken')
 
-# cron 관련 디렉터리 및 파일 검사
-cron_paths=("/etc/cron.hourly" "/etc/cron.daily" "/etc/cron.weekly" "/etc/cron.monthly" "/var/spool/cron" "/var/spool/cron/crontabs" "/etc/crontab" "/etc/cron.allow" "/etc/cron.deny")
-for cron_path in "${cron_paths[@]}"; do
-    if [ -d "$cron_path" ] || [ -f "$cron_path" ]; then
-        files=$(find "$cron_path" -type f 2>/dev/null)
-        for file in $files; do
-            permission=$(stat -c "%a" "$file")
-            owner=$(stat -c "%u" "$file")
-            if [ "$owner" -ne 0 ] || [ "$permission" -gt 640 ]; then
-                현황+=("$file 파일의 소유자(owner)가 root가 아닙니다 또는 권한이 640보다 큽니다.")
-                진단_결과="취약"
-            fi
-        done
-    fi
-done
-
-# 진단 결과 결정
-if [ -z "$진단_결과" ]; then
+if [ "$automount_status" == "false" ]; then
+    echo "AutomountServiceAccountToken is correctly set to false."
     진단_결과="양호"
-    현황+=("모든 cron 관련 파일 및 명령어가 적절한 권한 설정을 가지고 있습니다.")
+else
+    echo "AutomountServiceAccountToken is set to true, which is not recommended."
+    진단_결과="취약"
 fi
 
 # 결과 출력
 echo "분류: $분류"
 echo "코드: $코드"
 echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
+echo "진단_항목: $진단_항목"
 echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "$item"
-done
+echo "설정방법: $설정방법"
+echo "현황: ${현황[@]}"
+echo "진단_결과: $진단_결과"
