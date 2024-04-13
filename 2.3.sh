@@ -1,40 +1,35 @@
 #!/bin/bash
 
-# 변수 설정
-분류="파일 및 디렉터리 관리"
-코드="U-12"
-위험도="상"
-진단_항목="/etc/services 파일 소유자 및 권한 설정"
-대응방안="/etc/services 파일의 소유자가 root(또는 bin, sys)이고, 권한이 644 이하인 경우"
-services_file='/etc/services'
+# 변수 초기화
+분류="권한 관리"
+코드="2.3"
+위험도="중요도 상"
+진단_항목="기타 서비스 정책 관리"
+대응방안="AWS 기타 서비스(CloudWatch, CloudTrail, KMS 등)의 리소스 생성 또는 액세스 권한은 적절한 권한 정책에 따라 관리되어야 합니다."
+설정방법="IAM 관리자/운영자 그룹 생성 및 사용자 추가: IAM 사용자 그룹 탭에서 새 그룹 생성, 필요한 권한 정책 연결, 사용자 추가."
 현황=()
+진단_결과=""
 
-# /etc/services 파일 존재 여부 확인
-if [ -e "$services_file" ]; then
-    # 파일 권한 및 소유자 확인
-    mode=$(stat -c "%a" "$services_file")
-    owner_name=$(stat -c "%U" "$services_file")
+echo "Starting the policy check and group management for CloudWatch, CloudTrail, KMS..."
 
-    # 소유자가 root, bin 또는 sys이고 권한이 644 이하인지 확인
-    if [[ "$owner_name" == "root" || "$owner_name" == "bin" || "$owner_name" == "sys" ]] && [ "$mode" -le 644 ]; then
-        진단_결과="양호"
-        현황+=("$services_file 파일의 소유자가 $owner_name이고, 권한이 $mode입니다.")
-    else
-        진단_결과="취약"
-        현황+=("$services_file 파일의 소유자나 권한이 기준에 부합하지 않습니다.")
-    fi
+# IAM 정책 확인
+policy_check=$(aws iam list-attached-group-policies --group-name MiscAdmins --query 'AttachedPolicies[?PolicyName==`CloudWatchFullAccess` || PolicyName==`AWSCloudTrailFullAccess` || PolicyName==`AWSKMSFullAccess`].PolicyName' --output text)
+
+if [ -z "$policy_check" ]; then
+    echo "Required policies are not fully attached to the MiscAdmins group."
+    진단_결과="취약"
 else
-    진단_결과="N/A"
-    현황+=("$services_file 파일이 없습니다.")
+    echo "Required policies are correctly attached to the MiscAdmins group:"
+    echo "$policy_check"
+    진단_결과="양호"
 fi
 
 # 결과 출력
 echo "분류: $분류"
 echo "코드: $코드"
 echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
+echo "진단_항목: $진단_항목"
 echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "현황: $item"
-done
+echo "설정방법: $설정방법"
+echo "현황: ${현황[@]}"
+echo "진단_결과: $진단_결과"
