@@ -1,56 +1,60 @@
 #!/bin/bash
 
-# 변수 설정
-분류="서비스 관리"
-코드="U-27"
-위험도="상"
-진단_항목="RPC 서비스 확인"
-대응방안="불필요한 RPC 서비스 비활성화"
-현황=()
+{
+  "분류": "가상 리소스 관리",
+  "코드": "3.5",
+  "위험도": "중요도 하",
+  "진단_항목": "인터넷 게이트웨이 연결 관리",
+  "대응방안": {
+    "설명": "인터넷 게이트웨이는 수평 확장되고 가용성이 높은 중복 VPC 구성요소로, VPC의 인스턴스와 인터넷 간에 통신이 가능할 수 있게 해주는 기능이며 네트워크 트래픽 가용성 위험이나 대역폭 제약조건이 별도로 발생하진 않습니다. 인터넷 게이트웨이는 VPC 라우팅 테이블에 인터넷 Route 가능 트래픽에 대한 대상을 제공하며, 퍼블릭 IPv4 주소가 할당된 인스턴스에 대해 NAT를 수행합니다. 이는 IPv4, IPv6 트래픽을 모두 지원합니다.",
+    "설정방법": [
+      "인터넷 게이트웨이 설정 확인",
+      "VPC → '인터넷 게이트웨이' → '인터넷 게이트웨이' 선택 → 작업 → VPC에서 분리하여 인터넷 게이트웨이 삭제 방법"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"
+}
 
-rpc_services=("rpc.cmsd" "rpc.ttdbserverd" "sadmind" "rusersd" "walld" "sprayd" "rstatd" "rpc.nisd" "rexd" "rpc.pcnfsd" "rpc.statd" "rpc.ypupdated" "rpc.rquotad" "kcms_server" "cachefsd")
-xinetd_dir="/etc/xinetd.d"
-inetd_conf="/etc/inetd.conf"
-service_found=false
 
-# /etc/xinetd.d 아래 서비스 검사
-if [ -d "$xinetd_dir" ]; then
-    for service in "${rpc_services[@]}"; do
-        service_path="$xinetd_dir/$service"
-        if [ -f "$service_path" ]; then
-            if ! grep -q 'disable\s*=\s*yes' "$service_path"; then
-                현황+=("불필요한 RPC 서비스가 /etc/xinetd.d 디렉터리 내 서비스 파일에서 실행 중입니다: $service")
-                service_found=true
-            fi
-        fi
-    done
+# Ensure jq is installed
+if ! command -v jq &> /dev/null
+then
+    echo "jq could not be found, please install it to run this script."
+    exit 1
 fi
 
-# /etc/inetd.conf 파일 내 서비스 검사
-if [ -f "$inetd_conf" ]; then
-    for service in "${rpc_services[@]}"; do
-        if grep -q "$service" "$inetd_conf"; then
-            현황+=("불필요한 RPC 서비스가 /etc/inetd.conf 파일에서 실행 중입니다: $service")
-            service_found=true
-        fi
-    done
-fi
-
-# 진단 결과 결정
-if $service_found; then
-    진단_결과="취약"
+# List all Internet Gateways and their VPC Connections
+internet_gateways_output=$(aws ec2 describe-internet-gateways --query 'InternetGateways[*].[InternetGatewayId, Attachments]' --output text)
+if [ $? -eq 0 ]; then
+    echo "Internet Gateways and VPC Attachments:"
+    echo "$internet_gateways_output"
 else
-    진단_결과="양호"
-    현황+=("모든 불필요한 RPC 서비스가 비활성화되어 있습니다.")
+    echo "Failed to retrieve Internet Gateways. Please check your AWS CLI setup and permissions."
+    exit 1
 fi
 
-# 결과 출력
-echo "분류: $분류"
-echo "코드: $코드"
-echo "위험도: $위험도"
-echo "진단 항목: $진단_항목"
-echo "대응방안: $대응방안"
-echo "진단 결과: $진단_결과"
-for item in "${현황[@]}"; do
-    echo "$item"
-done
+# User prompt to check a specific Internet Gateway
+echo "Available Internet Gateways:"
+echo "$internet_gateways_output" | awk '{print $1}'  # Assuming the first column is the ID
+read -p "Enter Internet Gateway ID to check: " internet_gateway_id
+
+# Check for unnecessary NAT Gateways connected to the Internet Gateway
+nat_gateway_output=$(aws ec2 describe-nat-gateways --filter "Name=internet-gateway-id,Values=$internet_gateway_id" --query 'NatGateways' --output json)
+if [ $? -eq 0 ]; then
+    nat_gateway_count=$(echo "$nat_gateway_output" | jq '. | length')
+    if [ "$nat_gateway_count" -eq "0" ]; then
+        echo "Internet Gateway '$internet_gateway_id' has no unnecessary NAT Gateways connected."
+        exit_status="양호"
+    else
+        echo "Internet Gateway '$internet_gateway_id' has one or more unnecessary NAT Gateways connected."
+        exit_status="취약"
+    fi
+else
+    echo "Failed to retrieve NAT Gateway information. Please check your AWS CLI setup and permissions."
+    exit 1
+fi
+
+# Update JSON diagnostic result
+jq --arg status "$exit_status" '.진단_결과 = $status' diagnosis.json | sponge diagnosis.json
+echo "Diagnosis updated with result: $exit_status"
