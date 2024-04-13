@@ -1,50 +1,35 @@
 #!/bin/bash
 
-# 결과를 저장할 JSON 파일 초기화
-results_file="results.json"
-echo '{
-    "분류": "서비스 관리",
-    "코드": "U-38",
-    "위험도": "상",
-    "진단 항목": "웹서비스 불필요한 파일 제거",
-    "진단 결과": null,
-    "현황": [],
-    "대응방안": "기본으로 생성되는 불필요한 파일 및 디렉터리 제거"
-}' > $results_file
+{
+  "분류": "운영 관리",
+  "코드": "4.7",
+  "위험도": "중요도 상",
+  "진단_항목": "AWS 사용자 계정 로깅 설정",
+  "대응방안": {
+    "설명": "AWS CloudTrail은 계정의 거버넌스, 규정 준수, 운영 및 위험 감사를 활성화하도록 도와주는 서비스입니다. 사용자, 역할 또는 AWS 서비스가 수행하는 작업들의 이벤트가 기록됩니다. CloudTrail은 생성 시 AWS 계정에서 활성화됩니다. 활동이 AWS 계정에서 이루어지면 해당 활동이 CloudTrail 이벤트에 기록됩니다.",
+    "설정방법": [
+      "CloudTrail 대시보드 진입 및 관리 이벤트 추적 확인",
+      "CloudTrail 추적 생성 버튼 클릭",
+      "CloudTrail 추적 속성 설정",
+      "CloudTrail CloudWatch Logs 설정",
+      "로그 이벤트 선택 – 관리 이벤트",
+      "CloudTrail 검토 및 생성 내용 확인"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"
+}
 
-webconf_files=(".htaccess" "httpd.conf" "apache2.conf")
-serverroot_directories=()
 
-for conf_file in "${webconf_files[@]}"; do
-    find_output=$(find / -name $conf_file -type f 2>/dev/null)
-    for file_path in $find_output; do
-        if [[ -n "$file_path" ]]; then
-            while IFS= read -r line; do
-                if [[ "$line" == ServerRoot* ]] && [[ ! "$line" =~ ^# ]]; then
-                    serverroot=$(echo $line | awk '{print $2}' | tr -d '"')
-                    if [[ ! " ${serverroot_directories[@]} " =~ " ${serverroot} " ]]; then
-                        serverroot_directories+=("$serverroot")
-                    fi
-                fi
-            done < "$file_path"
-        fi
-    done
-done
+# CloudTrail 로깅 상태 체크
+cloudtrail_logging_status=$(aws cloudtrail describe-trails --query 'trailList[*].Logging' --output text)
 
-vulnerable=false
-for directory in "${serverroot_directories[@]}"; do
-    manual_path="$directory/manual"
-    if [[ -d "$manual_path" ]]; then
-        vulnerable=true
-        jq --arg path "$manual_path" '.현황 += ["Apache 홈 디렉터리 내 기본으로 생성되는 불필요한 파일 및 디렉터리가 제거되어 있지 않습니다: " + $path]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-    fi
-done
-
-if [ "$vulnerable" = false ]; then
-    jq '.진단 결과 = "양호" | .현황 += ["Apache 홈 디렉터리 내 기본으로 생성되는 불필요한 파일 및 디렉터리가 제거되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+# 진단 결과 업데이트
+if [[ $cloudtrail_logging_status == "true" ]]; then
+    diagnostic_result="양호"
 else
-    jq '.진단 결과 = "취약"' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+    diagnostic_result="취약"
 fi
 
 # 결과 출력
-cat $results_file
+echo "AWS 사용자 계정 로깅 설정 진단 결과: $diagnostic_result"

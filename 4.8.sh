@@ -1,39 +1,41 @@
 #!/bin/bash
 
-# 결과를 저장할 JSON 파일 초기화
-results_file="results.json"
-echo '{
-    "분류": "서비스 관리",
-    "코드": "U-39",
-    "위험도": "상",
-    "진단 항목": "웹서비스 링크 사용금지",
-    "진단 결과": null,
-    "현황": [],
-    "대응방안": "심볼릭 링크, aliases 사용 제한"
-}' > $results_file
+{
+  "분류": "운영 관리",
+  "코드": "4.8",
+  "위험도": "중요도 중",
+  "진단_항목": "인스턴스 로깅 설정",
+  "대응방안": {
+    "설명": "Amazon CloudWatch Logs는 Amazon EC2 인스턴스, AWS CloudTrail, Route 53 및 기타 소스에서 로그 파일을 모니터링, 저장 및 액세스할 수 있습니다. 또한, 가상 인스턴스에 에이전트를 설치하여 로그 그룹에 등록된 로그 스트림을 통해 관련 로그를 확인할 수 있습니다.",
+    "설정방법": [
+      "EC2 내 CloudWatch 에이전트 설치",
+      "CloudWatch 내 로그 그룹 확인",
+      "로그 그룹 내 로그 스트림 확인",
+      "로그 스트림 내 로깅 확인"
+    ]
+  },
+  "현황": [],
+  "진단_결과": "양호"  // '취약'으로 업데이트 가능
+}
 
-webconf_files=(".htaccess" "httpd.conf" "apache2.conf" "userdir.conf")
-found_vulnerability=false
 
-for conf_file in "${webconf_files[@]}"; do
-    find_output=$(find / -name $conf_file -type f 2>/dev/null)
-    for file_path in $find_output; do
-        if [[ -n "$file_path" ]]; then
-            content=$(cat "$file_path")
-            if [[ "$content" == *"Options FollowSymLinks"* && "$content" != *"Options -FollowSymLinks"* ]]; then
-                found_vulnerability=true
-                jq --arg path "$file_path" '.현황 += [$path + " 파일에 심볼릭 링크 사용을 제한하지 않는 설정이 포함되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-                break 2
-            fi
-        fi
-    done
-done
-
-if [ "$found_vulnerability" = false ]; then
-    jq '.진단 결과 = "양호" | .현황 += ["웹서비스 설정 파일에서 심볼릭 링크 사용이 적절히 제한되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+# List all instances and their CloudWatch Logs agent status
+instances_output=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId]' --output text)
+if [ $? -eq 0 ]; then
+    echo "$instances_output"
 else
-    jq '.진단 결과 = "취약"' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+    echo "Failed to retrieve instances."
+    exit 1
 fi
 
-# 결과 출력
-cat $results_file
+# User prompt to check a specific Instance ID
+read -p "Enter Instance ID to check logging status: " instance_id
+
+# Check CloudWatch Logs agent installation and log stream registration
+log_agent_output=$(aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output json)
+log_streams_output=$(aws logs describe-log-streams --log-group-name "LogGroupNameHere" --query 'logStreams[*].[logStreamName]' --output json)
+if [[ $(echo "$log_agent_output" | jq '. | length') -gt 0 && $(echo "$log_streams_output" | jq '. | length') -gt 0 ]]; then
+    echo "Instance '$instance_id' has CloudWatch Logs agent installed and log streams registered."
+else
+    echo "Instance '$instance_id' does not have proper logging setup."
+fi
