@@ -1,32 +1,48 @@
-# 보안 조치 자동화
+# AWS 취약점 진단 자동화 스크립트
 
-이 프로젝트는 우분투 리눅스 시스템의 취약점을 자동으로 진단하는 쉘 스크립트를 개발
+이 프로젝트는 2024 클라우드 보안가이드(AWS) 기반으로 취약점을 점검하고 평가하는 자동화 스크립트를 제공합니다. 목표는 서버의 보안 상태를 평가하여 취약한 부분을 식별하고, 보안 조치를 취할 수 있도록 하는 것입니다.
 
-## 프로젝트 개요
 
-- **목적**: 우분투 리눅스의 설정 파일 취약점을 자동으로 진단 및 조치
-- **프로젝트 기간**: 2023년 1월 ~ 2023년 2월
+```json
+{
+  "점검항목명": {
+    "status": "취약" | "양호",
+    "description": "항목에 대한 설명 및 조치 사항"
+  },
+  ...
+}
+```
 
-## 역할
 
-본 프로젝트에서 제 역할은 다음과 같습니다:
+```python
+cd root
+```
 
-- 취약점 진단을 위한 쉘 스크립트 개발
+```python
+sudo yum install git -y
+```
 
-## 프로젝트 성과
+```python
+sudo apt-get install git -y
+```
 
-이 프로젝트를 통해 다음과 같은 성과를 달성했습니다:
 
-- 우분투 리눅스 시스템의 주요 취약점 자동 진단 및 조치 구현
-- 주요통신기반시설 취약점 가이드를 기반으로 한 시스템 보안 수준 향상
+```python
+sudo git clone https://github.com/971023als/linux_vul
+```
 
-## 사용 방법
+```python
+cd linux_vul/Python_json/ubuntu/
+```
 
-스크립트를 사용하기 위해서는 리눅스 터미널에서 다음과 같은 명령어를 입력합니다:
+cd linux_vul/change/
+```
 
-```bash
-git clone https://github.com/971023als/ubunut-vul.git
-cd ubunut-vul
-chmod +x diagnose.sh
-./diagnose.sh
+```python
+chmod +x vul.sh
+```
 
+
+```python
+./vul.sh
+```
