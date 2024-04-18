@@ -1,22 +1,40 @@
-#!/bin/bash
+#!usr/bin/python3
 
-# 디렉터리 설정
-output_dir="./aws_iam_audit"
-mkdir -p $output_dir
+import boto3
+import json
+import os
+
+# 디렉토리 설정
+output_dir = "./aws_iam_audit"
+os.makedirs(output_dir, exist_ok=True)
+
+# AWS IAM 클라이언트 초기화
+iam = boto3.client('iam')
 
 # IAM 사용자 목록 조회
-echo "Fetching IAM Users..."
-aws iam list-users --output json > $output_dir/users.json
+print("IAM 사용자 목록을 조회합니다...")
+users = iam.list_users()
 
-# IAM 사용자 계정 단일화 진단 및 결과 저장
-echo "Evaluating IAM user account singularity and saving results..."
-echo "[]" > $output_dir/account_singularity_audit.json  # 초기 JSON 배열 파일 생성
+# 사용자 정보를 파일에 저장
+users_file_path = os.path.join(output_dir, 'users.json')
+with open(users_file_path, 'w') as f:
+    json.dump(users['Users'], f)
 
-# 사용자별로 Access Key 개수 확인
-jq -r '.Users[] | .UserName' $output_dir/users.json | while read user; do
-  key_count=$(aws iam list-access-keys --user-name "$user" --query 'AccessKeyMetadata | length' --output text)
-  # 각 사용자별로 Access Key 개수 저장
-  jq -n --arg user "$user" --argjson key_count "$key_count" '{"user": $user, "access_key_count": $key_count}' >> $output_dir/account_singularity_audit.json
-done
+# 각 사용자별 Access Key 개수 진단 및 결과 저장
+results = []
+for user in users['Users']:
+    user_name = user['UserName']
+    keys = iam.list_access_keys(UserName=user_name)
+    key_count = len(keys['AccessKeyMetadata'])
+    results.append({
+        'user': user_name,
+        'access_key_count': key_count
+    })
 
-echo "Audit complete. Results saved in $output_dir."
+# 결과를 JSON 배열로 저장
+results_file_path = os.path.join(output_dir, 'account_singularity_audit.json')
+with open(results_file_path, 'w') as f:
+    json.dump(results, f)
+
+print(f"감사가 완료되었습니다. 결과는 {output_dir}에 저장되었습니다.")
+
