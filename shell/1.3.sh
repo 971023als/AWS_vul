@@ -27,8 +27,8 @@ mkdir -p $output_dir
 echo "Fetching IAM Users and evaluating tags..."
 aws iam list-users --output json > $output_dir/users.json
 
-# 태그 평가 및 결과 저장
-echo "[]" > $output_dir/tag_audit_results.json  # 초기 JSON 배열 파일 생성
+# 초기 JSON 배열 파일 생성은 제거하고 임시 파일을 사용
+temp_file=$(mktemp)  # 임시 파일 생성
 
 jq -r '.Users[] | .UserName' $output_dir/users.json | while read user; do
   user_tags=$(aws iam list-user-tags --user-name "$user" --output json)
@@ -36,9 +36,14 @@ jq -r '.Users[] | .UserName' $output_dir/users.json | while read user; do
   email_tag=$(echo $user_tags | jq -r '.Tags[] | select(.Key == "Email") | .Value')
   department_tag=$(echo $user_tags | jq -r '.Tags[] | select(.Key == "Department") | .Value')
 
-  # 결과 생성 및 저장
+  # 각 결과를 임시 파일에 저장
   jq -n --arg user "$user" --arg name_tag "$name_tag" --arg email_tag "$email_tag" --arg department_tag "$department_tag" \
-  '{"user": $user, "Name": $name_tag, "Email": $email_tag, "Department": $department_tag}' >> $output_dir/tag_audit_results.json
+  '{"user": $user, "Name": $name_tag, "Email": $email_tag, "Department": $department_tag}' >> $temp_file
 done
 
+# 임시 파일의 내용을 JSON 배열로 변환하여 최종 파일에 저장
+jq -s '.' $temp_file > $output_dir/tag_audit_results.json
+rm $temp_file  # 임시 파일 삭제
+
 echo "Audit complete. Results saved in $output_dir."
+
