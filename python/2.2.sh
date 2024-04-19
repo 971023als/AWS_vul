@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/usr/python3
 
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,8 +11,8 @@ jsonData = {
     "코드": "2.2",
     "위험도": "중요도 상",
     "진단항목": "네트워크 서비스 정책 관리",
-    "대응방안": ("AWS 네트워크 서비스(VPC, Route 53, Direct Connect 등)는 IAM 자격 증명에 권한 정책을 연결하여 관리되어야 합니다. 적절한 권한을 통한 체계적인 관리는 보안과 효율성을 보장합니다."),
-    "설정방법": ("네트워크 서비스 별 IAM 관리자/운영자 권한 그룹 생성: 1) IAM 내 그룹 탭 접근, 2) 새로운 그룹 생성, 3) 필요한 권한 정책 연결, 4) 그룹 생성 확인"),
+    "대응방안": "AWS 네트워크 서비스(VPC, Route 53, Direct Connect 등)는 IAM 자격 증명에 권한 정책을 연결하여 관리되어야 합니다. 적절한 권한을 통한 체계적인 관리는 보안과 효율성을 보장합니다.",
+    "설정방법": "네트워크 서비스 별 IAM 관리자/운영자 권한 그룹 생성: 1) IAM 내 그룹 탭 접근, 2) 새로운 그룹 생성, 3) 필요한 권한 정책 연결, 4) 그룹 생성 확인",
     "현황": [],
     "진단결과": "(변수: 양호, 취약)"
 }
@@ -51,7 +53,7 @@ try:
         result = f"Required policies are correctly attached to the {group_name} group:\n" + ', '.join(attached_policies) + "\n"
         jsonData['진단결과'] = "양호"
     else:
-        result = f"Required policies are not fully attached to the {group_name} group. Missing: " + ', '.join(missing_policies) + "\n"
+        result = f"Missing required policies for the {group_name} group: " + ', '.join(missing_policies) + "\n"
         jsonData['진단결과'] = "취약"
 
 except Exception as e:
@@ -68,4 +70,3 @@ with open(log_file_name, 'r') as file:
 
 # Print JSON data with results
 print(json.dumps(jsonData, indent=2, ensure_ascii=False))
-

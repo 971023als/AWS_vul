@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -60,15 +63,12 @@ for sg in security_groups:
     )
 
     if inbound_any or outbound_any:
-        result = f"Security Group '{sg_id}' has overly permissive settings."
+        result = f"WARNING: Security Group '{sg_id}' has overly permissive settings."
         jsonData['진단결과'] = "취약"
     else:
-        result = f"Security Group '{sg_id}' settings are appropriate."
+        result = f"OK: Security Group '{sg_id}' settings are appropriate."
         jsonData['진단결과'] = "양호"
     results.append(result)
-
-# Log results
-for result in results:
     log_message(result, log_file_name)
 
 bar()
@@ -79,4 +79,3 @@ with open(log_file_name, 'r') as file:
 
 # Print JSON data with results
 print(json.dumps(jsonData, indent=2, ensure_ascii=False))
-

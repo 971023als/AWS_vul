@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -41,14 +44,18 @@ bar()
 # Check IAM policies using boto3
 iam = boto3.client('iam')
 try:
-    response = iam.list_policies(Scope='Local')
-    policy_names = [policy['PolicyName'] for policy in response['Policies'] if policy['PolicyName'] in ['AmazonEC2FullAccess', 'AmazonRDSFullAccess', 'AmazonS3FullAccess']]
-    
-    if not policy_names:
-        result = "Required policies are not fully attached.\n"
+    response = iam.list_policies(Scope='Local', OnlyAttached=True)
+    attached_policy_names = [policy['PolicyName'] for policy in response['Policies']]
+
+    # Check specific policies (you can adjust these as necessary)
+    required_policies = {'AmazonEC2FullAccess', 'AmazonRDSFullAccess', 'AmazonS3FullAccess'}
+    missing_policies = required_policies - set(attached_policy_names)
+
+    if missing_policies:
+        result = f"Missing required policies: {', '.join(missing_policies)}\n"
         jsonData['진단결과'] = "취약"
     else:
-        result = "Required policies are correctly attached:\n" + ', '.join(policy_names) + "\n"
+        result = "All required policies are correctly attached.\n"
         jsonData['진단결과'] = "양호"
 
 except Exception as e:

@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -85,4 +88,4 @@ with open(log_file_name, 'r') as file:
     print(file.read())
 
 # Print JSON data with results
-print(json.dumps(jsonData, indent=2, ensure_ascii=False))
+print(json.dumps(jsonData, indent=2, ensure_ascii

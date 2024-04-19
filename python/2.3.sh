@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -39,7 +42,7 @@ bar()
 
 # Check IAM policies using boto3
 iam = boto3.client('iam')
-group_name = 'MiscAdmins'  # This is the group name
+group_name = 'MiscAdmins'  # Assume this is the group name
 try:
     response = iam.list_attached_group_policies(GroupName=group_name)
     attached_policies = [policy['PolicyName'] for policy in response['AttachedPolicies']]
@@ -50,7 +53,7 @@ try:
         result = f"Required policies are correctly attached to the {group_name} group:\n" + ', '.join(attached_policies) + "\n"
         jsonData['진단결과'] = "양호"
     else:
-        result = f"Required policies are not fully attached to the {group_name} group. Missing: " + ', '.join(missing_policies) + "\n"
+        result = f"Missing required policies for the {group_name} group: " + ', '.join(missing_policies) + "\n"
         jsonData['진단결과'] = "취약"
 
 except Exception as e:
