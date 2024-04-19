@@ -1,70 +1,79 @@
 #!/bin/bash
 
-{
-  "분류": "운영 관리",
-  "코드": "4.2",
-  "위험도": "중요도 중",
-  "진단_항목": "RDS 암호화 설정",
-  "대응방안": {
-    "설명": "RDS는 데이터 보호를 위해 DB 인스턴스에서 암호화 옵션 기능을 제공하며, 암호화 시 AES-256 암호화 알고리즘을 이용하여 DB 인스턴스의 모든 로그, 백업 및 스냅샷 암호화가 가능합니다.",
-    "설정방법": [
-      "데이터베이스 클릭",
-      "DB 생성 방식 및 엔진 등 설정",
-      "데이터베이스 암호화 설정",
-      "데이터베이스 생성 확인",
-      "데이터베이스 암호화 확인"
-    ]
-  },
-  "현황": [],
-  "진단_결과": "양호"
+
+import boto3
+import json
+
+# Python dictionary for JSON data
+jsonData = {
+    "분류": "운영 관리",
+    "코드": "4.2",
+    "위험도": "중요도 중",
+    "진단항목": "RDS 암호화 설정",
+    "대응방안": {
+        "설명": "RDS는 데이터 보호를 위해 DB 인스턴스에서 암호화 옵션 기능을 제공하며, 암호화 시 AES-256 암호화 알고리즘을 이용하여 DB 인스턴스의 모든 로그, 백업 및 스냅샷 암호화가 가능합니다.",
+        "설정방법": [
+            "데이터베이스 클릭",
+            "DB 생성 방식 및 엔진 등 설정",
+            "데이터베이스 암호화 설정",
+            "데이터베이스 생성 확인",
+            "데이터베이스 암호화 확인"
+        ]
+    },
+    "현황": [],
+    "진단결과": "양호"
 }
 
+def bar():
+    print("=" * 40)
 
-# Check for aws CLI tools
-if ! command -v aws &> /dev/null; then
-    echo "AWS CLI is not installed. Please install AWS CLI to run this script."
-    exit 1
-fi
+def log_message(message, file_path):
+    with open(file_path, 'a') as file:
+        file.write(message + "\n")
 
-# List all RDS instances with their encryption status
-echo "Retrieving RDS instances and encryption status..."
-rds_instances_output=$(aws rds describe-db-instances --query 'DBInstances[*].{DBInstanceIdentifier:DBInstanceIdentifier, StorageEncrypted:StorageEncrypted}' --output json)
-if [ $? -ne 0 ]; then
-    echo "Failed to retrieve RDS instances. Please check your AWS CLI setup and permissions."
-    exit 1
-fi
+# Define the log file path
+log_file_name = "rds_security_audit.log"
 
-if [ -z "$rds_instances_output" ]; then
-    echo "No RDS instances found."
-    exit 0
-fi
+# Clear or create the log file
+with open(log_file_name, 'w') as file:
+    pass
 
-echo "RDS Instances and Encryption Status:"
-echo "$rds_instances_output"
+bar()
 
-# User prompt to check a specific RDS instance
-read -p "Enter RDS instance identifier to check encryption status: " db_instance_identifier
+# Log initial information
+code = "[4.2] RDS 암호화 설정"
+initial_message = f"{code}\n[양호]: 모든 RDS 인스턴스가 암호화되어 있는 경우\n[취약]: 하나 이상의 RDS 인스턴스가 암호화되지 않은 경우\n"
+log_message(initial_message, log_file_name)
 
-# Check specific RDS instance encryption status
-echo "Checking encryption status for RDS instance '$db_instance_identifier'..."
-db_encryption_status=$(aws rds describe-db-instances --db-instance-identifier "$db_instance_identifier" --query 'DBInstances[*].StorageEncrypted' --output text)
-if [ $? -ne 0 ]; then
-    echo "Failed to retrieve encryption status for RDS instance '$db_instance_identifier'. Please check the instance identifier and your permissions."
-    exit 1
-fi
+bar()
 
-echo "Encryption Status for '$db_instance_identifier': $db_encryption_status"
+# AWS SDK setup
+rds = boto3.client('rds')
 
-# Determine the security status based on encryption status
-if [[ "$db_encryption_status" == "true" ]]; then
-    echo "RDS instance '$db_instance_identifier' is encrypted."
-    exit_status="양호"
-else
-    echo "RDS instance '$db_instance_identifier' is not encrypted."
-    exit_status="취약"
-fi
+# Fetching all RDS instances
+try:
+    instances = rds.describe_db_instances()
+    if instances['DBInstances']:
+        print("RDS Instances and their encryption status:")
+        for instance in instances['DBInstances']:
+            print(f"Instance ID: {instance['DBInstanceIdentifier']}, Encrypted: {instance['StorageEncrypted']}")
+            if not instance['StorageEncrypted']:
+                jsonData['진단결과'] = "취약"
+    else:
+        print("No RDS instances found.")
+except Exception as e:
+    print("Failed to retrieve RDS instances. Error:", str(e))
+    jsonData['진단결과'] = "취약"
 
-# Update JSON diagnostic result directly using jq and sponge
-echo "Updating diagnosis result..."
-jq --arg status "$exit_status" '.진단_결과 = $status' diagnosis.json | sponge diagnosis.json
-echo "Diagnosis updated with result: $exit_status"
+# Log results
+result_message = f"Diagnosis result: {jsonData['진단결과']}"
+log_message(result_message, log_file_name)
+
+bar()
+
+# Print results
+with open(log_file_name, 'r') as file:
+    print(file.read())
+
+# Print JSON data with results
+print(json.dumps(jsonData, indent=2, ensure_ascii=False))
