@@ -1,5 +1,18 @@
 #!/bin/bash
 
+jsonData=$(cat <<-END
+{
+    "분류": "시스템 보안",
+    "코드": "1.4",
+    "위험도": "중간",
+    "진단항목": "Telnet 서비스 보안 인증 방식 사용 여부",
+    "진단결과": "변수: 양호",   # 이 부분은 스크립트 실행 중에 결정되어야 할 수 있음
+    "현황": "Placeholder for Get-TelnetStatus function",
+    "대응방안": "Telnet 서비스를 비활성화하거나 보안 인증 방식을 사용해야 합니다."
+}
+END
+)
+
 # 디렉터리 설정
 output_dir="./aws_iam_groups_audit"
 mkdir -p $output_dir

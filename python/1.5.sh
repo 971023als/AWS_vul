@@ -25,29 +25,40 @@ aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Key
   "현황": [],
   "진단_결과": "양호"
 }
+import boto3
+from botocore.exceptions import ClientError
 
-# List all instances and their Key Pairs
-instances_output=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,KeyName]' --output text)
-if [ $? -eq 0 ]; then
-    echo "$instances_output"
-else
-    echo "Failed to retrieve instances."
-    exit 1
-fi
+def list_instances():
+    ec2 = boto3.client('ec2')
+    try:
+        response = ec2.describe_instances()
+        instances = response['Reservations']
+        for reservation in instances:
+            for instance in reservation['Instances']:
+                instance_id = instance['InstanceId']
+                key_name = instance.get('KeyName', 'No Key Pair')
+                print(f"Instance ID: {instance_id}, Key Pair: {key_name}")
+    except ClientError as e:
+        print(f"Failed to retrieve instances: {e}")
 
-# User prompt to check a specific Key Pair
-read -p "Enter Key Pair name to check: " key_pair_name
+def check_key_pair(key_pair_name):
+    ec2 = boto3.client('ec2')
+    try:
+        response = ec2.describe_key_pairs(KeyNames=[key_pair_name])
+        if response['KeyPairs']:
+            print(f"Key Pair '{key_pair_name}' is properly registered.")
+        else:
+            print(f"Key Pair '{key_pair_name}' is not registered or does not exist.")
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'InvalidKeyPair.NotFound':
+            print(f"Key Pair '{key_pair_name}' is not registered or does not exist.")
+        else:
+            print(f"Failed to retrieve Key Pair information: {e}")
 
-# Check existence of the Key Pair
-key_pair_output=$(aws ec2 describe-key-pairs --key-names "$key_pair_name" --query 'KeyPairs' --output json)
-if [ $? -eq 0 ]; then
-    key_pair_exists=$(echo "$key_pair_output" | jq '. | length')
-    if [ "$key_pair_exists" -eq "1" ]; then
-        echo "Key Pair '$key_pair_name' is properly registered."
-    else
-        echo "Key Pair '$key_pair_name' is not registered or does not exist."
-    fi
-else
-    echo "Failed to retrieve Key Pair information."
-    exit 1
-fi
+def main():
+    list_instances()
+    key_pair_name = input("Enter Key Pair name to check: ")
+    check_key_pair(key_pair_name)
+
+if __name__ == "__main__":
+    main()
