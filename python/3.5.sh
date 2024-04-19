@@ -1,60 +1,79 @@
 #!/bin/bash
+import boto3
+import json
 
-{
-  "분류": "가상 리소스 관리",
-  "코드": "3.5",
-  "위험도": "중요도 하",
-  "진단_항목": "인터넷 게이트웨이 연결 관리",
-  "대응방안": {
-    "설명": "인터넷 게이트웨이는 수평 확장되고 가용성이 높은 중복 VPC 구성요소로, VPC의 인스턴스와 인터넷 간에 통신이 가능할 수 있게 해주는 기능이며 네트워크 트래픽 가용성 위험이나 대역폭 제약조건이 별도로 발생하진 않습니다. 인터넷 게이트웨이는 VPC 라우팅 테이블에 인터넷 Route 가능 트래픽에 대한 대상을 제공하며, 퍼블릭 IPv4 주소가 할당된 인스턴스에 대해 NAT를 수행합니다. 이는 IPv4, IPv6 트래픽을 모두 지원합니다.",
-    "설정방법": [
-      "인터넷 게이트웨이 설정 확인",
-      "VPC → '인터넷 게이트웨이' → '인터넷 게이트웨이' 선택 → 작업 → VPC에서 분리하여 인터넷 게이트웨이 삭제 방법"
-    ]
-  },
-  "현황": [],
-  "진단_결과": "양호"
+# Python dictionary for JSON data
+jsonData = {
+    "분류": "가상 리소스 관리",
+    "코드": "3.5",
+    "위험도": "중요도 하",
+    "진단항목": "인터넷 게이트웨이 연결 관리",
+    "대응방안": {
+        "설명": "인터넷 게이트웨이는 수평 확장되고 가용성이 높은 중복 VPC 구성요소로, VPC의 인스턴스와 인터넷 간에 통신이 가능할 수 있게 해주는 기능이며 네트워크 트래픽 가용성 위험이나 대역폭 제약조건이 별도로 발생하진 않습니다. 인터넷 게이트웨이는 VPC 라우팅 테이블에 인터넷 Route 가능 트래픽에 대한 대상을 제공하며, 퍼블릭 IPv4 주소가 할당된 인스턴스에 대해 NAT를 수행합니다. 이는 IPv4, IPv6 트래픽을 모두 지원합니다.",
+        "설정방법": [
+            "인터넷 게이트웨이 설정 확인",
+            "VPC → '인터넷 게이트웨이' → '인터넷 게이트웨이' 선택 → 작업 → VPC에서 분리하여 인터넷 게이트웨이 삭제 방법"
+        ]
+    },
+    "현황": [],
+    "진단결과": "양호"
 }
 
+def bar():
+    print("=" * 40)
 
-# Ensure jq is installed
-if ! command -v jq &> /dev/null
-then
-    echo "jq could not be found, please install it to run this script."
-    exit 1
-fi
+def log_message(message, file_path):
+    with open(file_path, 'a') as file:
+        file.write(message + "\n")
 
-# List all Internet Gateways and their VPC Connections
-internet_gateways_output=$(aws ec2 describe-internet-gateways --query 'InternetGateways[*].[InternetGatewayId, Attachments]' --output text)
-if [ $? -eq 0 ]; then
-    echo "Internet Gateways and VPC Attachments:"
-    echo "$internet_gateways_output"
-else
-    echo "Failed to retrieve Internet Gateways. Please check your AWS CLI setup and permissions."
-    exit 1
-fi
+# Define the log file path
+log_file_name = "internet_gateway_audit.log"
 
-# User prompt to check a specific Internet Gateway
-echo "Available Internet Gateways:"
-echo "$internet_gateways_output" | awk '{print $1}'  # Assuming the first column is the ID
-read -p "Enter Internet Gateway ID to check: " internet_gateway_id
+# Clear or create the log file
+with open(log_file_name, 'w') as file:
+    pass
 
-# Check for unnecessary NAT Gateways connected to the Internet Gateway
-nat_gateway_output=$(aws ec2 describe-nat-gateways --filter "Name=internet-gateway-id,Values=$internet_gateway_id" --query 'NatGateways' --output json)
-if [ $? -eq 0 ]; then
-    nat_gateway_count=$(echo "$nat_gateway_output" | jq '. | length')
-    if [ "$nat_gateway_count" -eq "0" ]; then
-        echo "Internet Gateway '$internet_gateway_id' has no unnecessary NAT Gateways connected."
-        exit_status="양호"
-    else
-        echo "Internet Gateway '$internet_gateway_id' has one or more unnecessary NAT Gateways connected."
-        exit_status="취약"
-    fi
-else
-    echo "Failed to retrieve NAT Gateway information. Please check your AWS CLI setup and permissions."
-    exit 1
-fi
+bar()
 
-# Update JSON diagnostic result
-jq --arg status "$exit_status" '.진단_결과 = $status' diagnosis.json | sponge diagnosis.json
-echo "Diagnosis updated with result: $exit_status"
+# Log initial information
+code = "[3.5] 인터넷 게이트웨이 연결 관리"
+initial_message = f"{code}\n[양호]: 인터넷 게이트웨이 설정이 적절한 경우\n[취약]: 인터넷 게이트웨이에 불필요한 연결이 있는 경우\n"
+log_message(initial_message, log_file_name)
+
+bar()
+
+# AWS SDK setup
+ec2 = boto3.client('ec2')
+
+# Fetching all Internet Gateways
+internet_gateways = ec2.describe_internet_gateways()
+print("Available Internet Gateways:")
+for igw in internet_gateways['InternetGateways']:
+    print(f"{igw['InternetGatewayId']} - Attachments: {igw['Attachments']}")
+
+# User input for Internet Gateway ID
+internet_gateway_id = input("Enter Internet Gateway ID to check: ")
+
+# Fetch NAT Gateways associated with the Internet Gateway
+filters = [{'Name': 'internet-gateway-id', 'Values': [internet_gateway_id]}]
+nat_gateways = ec2.describe_nat_gateways(Filters=filters)
+
+# Determine if there are any NAT Gateways connected
+if not nat_gateways['NatGateways']:
+    result = "Internet Gateway '{}' has no unnecessary NAT Gateways connected.".format(internet_gateway_id)
+    jsonData['진단결과'] = "양호"
+else:
+    result = "Internet Gateway '{}' has one or more unnecessary NAT Gateways connected.".format(internet_gateway_id)
+    jsonData['진단결과'] = "취약"
+
+# Log results
+log_message(result, log_file_name)
+
+bar()
+
+# Print results
+with open(log_file_name, 'r') as file:
+    print(file.read())
+
+# Print JSON data with results
+print(json.dumps(jsonData, indent=2, ensure_ascii=False))
