@@ -2,6 +2,8 @@
 
 import boto3
 import json
+import os
+import subprocess
 from datetime import datetime, timezone
 
 # AWS 서비스 클라이언트 설정

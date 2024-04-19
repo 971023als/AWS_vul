@@ -1,4 +1,10 @@
-#!/bin/bash
+#!usr/bin/python3
+
+import boto3
+import json
+import os
+import subprocess
+from datetime import datetime, timezone
 
 # 디렉터리 설정
 output_dir="./aws_iam_groups_audit"

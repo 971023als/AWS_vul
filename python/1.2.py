@@ -3,6 +3,9 @@
 import boto3
 import json
 import os
+import subprocess
+from datetime import datetime, timezone
+
 
 # 디렉토리 설정
 output_dir = "./aws_iam_audit"
