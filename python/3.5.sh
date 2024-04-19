@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,14 +12,14 @@ jsonData = {
     "위험도": "중요도 하",
     "진단항목": "인터넷 게이트웨이 연결 관리",
     "대응방안": {
-        "설명": "인터넷 게이트웨이는 수평 확장되고 가용성이 높은 중복 VPC 구성요소로, VPC의 인스턴스와 인터넷 간에 통신이 가능할 수 있게 해주는 기능이며 네트워크 트래픽 가용성 위험이나 대역폭 제약조건이 별도로 발생하진 않습니다. 인터넷 게이트웨이는 VPC 라우팅 테이블에 인터넷 Route 가능 트래픽에 대한 대상을 제공하며, 퍼블릭 IPv4 주소가 할당된 인스턴스에 대해 NAT를 수행합니다. 이는 IPv4, IPv6 트래픽을 모두 지원합니다.",
+        "설명": "인터넷 게이트웨이는 VPC와 인터넷 간의 통신을 가능하게 하며, IPv4 및 IPv6 트래픽을 지원합니다. VPC 내의 모든 서브넷에 대한 인터넷 접근성을 제공하며, 설정을 적절히 관리하는 것이 중요합니다.",
         "설정방법": [
-            "인터넷 게이트웨이 설정 확인",
-            "VPC → '인터넷 게이트웨이' → '인터넷 게이트웨이' 선택 → 작업 → VPC에서 분리하여 인터넷 게이트웨이 삭제 방법"
+            "AWS 콘솔에서 인터넷 게이트웨이 접근",
+            "VPC 내 인터넷 게이트웨이를 검토 및 필요 없는 게이트웨이 분리 및 삭제"
         ]
     },
     "현황": [],
-    "진단결과": "양호"
+    "진단결과": "진단 필요"
 }
 
 def bar():
@@ -46,24 +49,22 @@ bar()
 ec2 = boto3.client('ec2')
 
 # Fetching all Internet Gateways
-internet_gateways = ec2.describe_internet_gateways()
+response = ec2.describe_internet_gateways()
 print("Available Internet Gateways:")
-for igw in internet_gateways['InternetGateways']:
-    print(f"{igw['InternetGatewayId']} - Attachments: {igw['Attachments']}")
+for igw in response['InternetGateways']:
+    print(f"{igw['InternetGatewayId']} - Attachments: {len(igw['Attachments'])}")
 
 # User input for Internet Gateway ID
 internet_gateway_id = input("Enter Internet Gateway ID to check: ")
 
-# Fetch NAT Gateways associated with the Internet Gateway
-filters = [{'Name': 'internet-gateway-id', 'Values': [internet_gateway_id]}]
-nat_gateways = ec2.describe_nat_gateways(Filters=filters)
-
-# Determine if there are any NAT Gateways connected
-if not nat_gateways['NatGateways']:
-    result = "Internet Gateway '{}' has no unnecessary NAT Gateways connected.".format(internet_gateway_id)
+# Check if the selected Internet Gateway is properly configured without any unnecessary connections
+gateway_details = ec2.describe_internet_gateways(InternetGatewayIds=[internet_gateway_id])
+attachments = gateway_details['InternetGateways'][0]['Attachments']
+if any(att['State'] == 'available' for att in attachments):
+    result = f"Internet Gateway '{internet_gateway_id}' is properly configured and active."
     jsonData['진단결과'] = "양호"
 else:
-    result = "Internet Gateway '{}' has one or more unnecessary NAT Gateways connected.".format(internet_gateway_id)
+    result = f"Internet Gateway '{internet_gateway_id}' has issues with its configuration or is not properly attached."
     jsonData['진단결과'] = "취약"
 
 # Log results

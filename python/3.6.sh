@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,12 +12,10 @@ jsonData = {
     "위험도": "중요도 중",
     "진단항목": "NAT 게이트웨이 연결 관리",
     "대응방안": {
-        "설명": ("NAT 게이트웨이는 NAT 디바이스를 사용하여 프라이빗 서브넷의 인스턴스를 인터넷(예: 소프트웨어 업데이트용) 또는 기타 AWS 서비스에 연결하는 한편, "
-                 "인터넷에서 해당 인스턴스와의 연결을 시작하지 못하도록 합니다. 트래픽이 인터넷으로 이동하면 소스 IPv4 주소가 NAT 디바이스의 주소로 대체되고, "
-                 "이와 마찬가지로 응답 트래픽이 해당 인스턴스로 이동하면 NAT 디바이스에서 주소를 해당 인스턴스의 프라이빗 IPv4 주소로 다시 변환합니다."),
+        "설명": "NAT 게이트웨이는 프라이빗 서브넷의 인스턴스가 인터넷과 통신할 수 있게 해주면서, 인터넷에서 직접적인 연결을 차단합니다. 이는 인스턴스의 보안을 강화하는 중요한 요소입니다.",
         "설정방법": [
-            "NAT 게이트웨이 생성 및 프라이빗 연결 확인",
-            "VPC 내 NAT 게이트웨이 탭 접근 후 NAT 게이트웨이 삭제 클릭"
+            "AWS Management Console에서 VPC 섹션으로 이동",
+            "NAT 게이트웨이 설정 검토 및 적절한 서브넷에 연결"
         ]
     },
     "현황": [],
@@ -39,7 +40,7 @@ bar()
 
 # Log initial information
 code = "[3.6] NAT 게이트웨이 연결 관리"
-initial_message = f"{code}\n[양호]: NAT 게이트웨이 설정이 적절한 경우\n[취약]: NAT 게이트웨이에 불필요한 연결이 있는 경우\n"
+initial_message = f"{code}\n[양호]: NAT 게이트웨이 설정이 적절하게 관리되고 있는 경우\n[취약]: NAT 게이트웨이에 불필요한 연결이 존재하는 경우\n"
 log_message(initial_message, log_file_name)
 
 bar()
@@ -56,16 +57,19 @@ for ngw in nat_gateways['NatGateways']:
 # User input for NAT Gateway ID
 nat_gateway_id = input("Enter NAT Gateway ID to check: ")
 
-# Check for unnecessary connections to the NAT Gateway
-network_interfaces = ec2.describe_network_interfaces(Filters=[{'Name': 'attachment.nat-gateway-id', 'Values': [nat_gateway_id]}])
-
-# Determine if there are active connections
-if network_interfaces['NetworkInterfaces']:
-    result = f"NAT Gateway '{nat_gateway_id}' has connections: {len(network_interfaces['NetworkInterfaces'])}"
-    jsonData['진단결과'] = "취약"
+# Check the NAT Gateway's connections and configurations
+nat_details = ec2.describe_nat_gateways(NatGatewayIds=[nat_gateway_id])
+if nat_details['NatGateways']:
+    ngw_details = nat_details['NatGateways'][0]
+    if ngw_details['State'] == 'available' and ngw_details['SubnetId']:
+        result = f"NAT Gateway '{nat_gateway_id}' is properly configured in Subnet '{ngw_details['SubnetId']}'"
+        jsonData['진단결과'] = "양호"
+    else:
+        result = f"NAT Gateway '{nat_gateway_id}' is not properly configured."
+        jsonData['진단결과'] = "취약"
 else:
-    result = f"NAT Gateway '{nat_gateway_id}' has no active connections or is not connected to intended resources."
-    jsonData['진단결과'] = "양호"
+    result = "NAT Gateway not found or incorrect ID."
+    jsonData['진단결과'] = "에러 발생"
 
 # Log results
 log_message(result, log_file_name)
