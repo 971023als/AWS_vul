@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/usr/python3
+
 import json
+import os
 import subprocess
 
 # Python dictionary for JSON data
@@ -8,9 +10,7 @@ jsonData = {
     "코드": "1.12",
     "위험도": "중요도 중",
     "진단항목": "EKS 서비스 어카운트 관리",
-    "대응방안": ("서비스 어카운트는 파드에 쿠버네티스 RBAC 역할을 할당할 수 있는 특수한 유형의 개체입니다. Cluster 내의 각 네임스페이스에 "
-                "기본 서비스 어카운트가 자동으로 생성되며, 특정 서비스 어카운트를 참조하지 않고 네임스페이스에 파드를 배포하면, 해당 네임스페이스의 "
-                "파드에 자동으로 할당됩니다. AutomountServiceAccountToken 속성을 false로 설정하여 불필요한 토큰 마운트를 방지해야 합니다."),
+    "대응방안": "서비스 어카운트는 파드에 쿠버네티스 RBAC 역할을 할당할 수 있는 특수한 유형의 개체입니다. Cluster 내의 각 네임스페이스에 기본 서비스 어카운트가 자동으로 생성되며, 특정 서비스 어카운트를 참조하지 않고 네임스페이스에 파드를 배포하면, 해당 네임스페이스의 파드에 자동으로 할당됩니다. AutomountServiceAccountToken 속성을 false로 설정하여 불필요한 토큰 마운트를 방지해야 합니다.",
     "설정방법": "가. 서비스 어카운트 토큰 자동 마운트 비활성화: 1) 서비스 어카운트 토큰 자동 마운트 비활성화 여부 확인, 2) 서비스 어카운트 토큰 자동 마운트 비활성화 (false) 설정 및 확인",
     "현황": "Placeholder for Automount status",
     "진단결과": "(변수: 양호, 취약)"
@@ -46,13 +46,13 @@ try:
         text=True
     )
     automount_status_json = json.loads(automount_status)
-    token_setting = automount_status_json.get('automountServiceAccountToken', True)
+    token_setting = automount_status_json['automountServiceAccountToken']
 
     if not token_setting:
-        result = "AutomountServiceAccountToken is correctly set to false.\n"
+        result = "OK: AutomountServiceAccountToken is correctly set to false.\n"
         jsonData['진단결과'] = "양호"
     else:
-        result = "AutomountServiceAccountToken is set to true, which is not recommended.\n"
+        result = "WARNING: AutomountServiceAccountToken is set to true, which is not recommended.\n"
         jsonData['진단결과'] = "취약"
 except subprocess.CalledProcessError as e:
     result = f"Failed to check AutomountServiceAccountToken setting: {e}\n"
