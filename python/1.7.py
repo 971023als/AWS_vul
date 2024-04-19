@@ -1,4 +1,12 @@
-#!/bin/bash
+#!usr/bin/python3
+
+import boto3
+import json
+import os
+import subprocess
+from datetime import datetime, timezone
+
+
 def create_iam_user_simulation():
     분류 = "권한 관리"
     코드 = "1.7"
