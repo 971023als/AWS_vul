@@ -1,5 +1,10 @@
+#!/usr/python3
+
 import boto3
 from botocore.exceptions import ClientError
+import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,8 +14,7 @@ jsonData = {
     "진단항목": "AWS 계정 패스워드 정책 관리",
     "진단결과": "(변수: 양호, 취약)",
     "현황": "Placeholder for password policy status",
-    "대응방안": ("AWS Admin Console Account 계정 및 IAM 사용자 계정의 암호 설정 시 유추하기 쉬운 암호를 설정하는 경우 비 인가된 사용자가 해당 계정을 "
-                 "획득하여 접근 가능성이 존재합니다. 패스워드는 여러 문자 종류를 조합하여 구성하고, 연속적인 문자 사용을 금지하며, 패스워드 재사용을 제한합니다.")
+    "대응방안": "AWS Admin Console Account 계정 및 IAM 사용자 계정의 암호 설정 시 유추하기 쉬운 암호를 설정하는 경우 비 인가된 사용자가 해당 계정을 획득하여 접근 가능성이 존재합니다. 패스워드는 여러 문자 종류를 조합하여 구성하고, 연속적인 문자 사용을 금지하며, 패스워드 재사용을 제한합니다."
 }
 
 def bar():

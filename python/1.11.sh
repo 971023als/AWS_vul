@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/usr/python3
+
 import json
+import os
 import subprocess
 
 # Python dictionary for JSON data
@@ -10,10 +12,7 @@ jsonData = {
     "진단항목": "EKS 사용자 관리",
     "진단결과": "(변수: 양호, 취약)",
     "현황": "Placeholder for aws-auth ConfigMap status",
-    "대응방안": ("기본적으로 AWS 계정은 리소스에 대한 접근을 허용하는 최소한의 사용자 수와 권한으로 관리되어야 합니다. "
-                "AWS에서는 IAM 사용자에게 EKS Cluster에 대한 액세스 권한을 부여할 경우 특정 쿠버네티스 RBAC 그룹에 매핑되는 사용자의 "
-                "'aws-auth' ConfigMap을 제공합니다. 이 ConfigMap은 초기에는 노드를 Cluster에 연결 목적으로 만들어졌으나 IAM 보안 주체에 "
-                "역할 기반 액세스 제어(RBAC) 액세스를 추가하여 사용할 수도 있습니다.")
+    "대응방안": "기본적으로 AWS 계정은 리소스에 대한 접근을 허용하는 최소한의 사용자 수와 권한으로 관리되어야 합니다. AWS에서는 IAM 사용자에게 EKS Cluster에 대한 액세스 권한을 부여할 경우 특정 쿠버네티스 RBAC 그룹에 매핑되는 사용자의 'aws-auth' ConfigMap을 제공합니다. 이 ConfigMap은 초기에는 노드를 Cluster에 연결 목적으로 만들어졌으나 IAM 보안 주체에 역할 기반 액세스 제어(RBAC) 액세스를 추가하여 사용할 수도 있습니다."
 }
 
 def bar():
@@ -43,10 +42,10 @@ bar()
 try:
     configmap_status = subprocess.check_output(["kubectl", "describe", "configmap", "aws-auth", "-n", "kube-system"], text=True)
     if "system:masters" in configmap_status:
-        result = "System:masters role found in aws-auth ConfigMap.\n"
+        result = "WARNING: System:masters role found in aws-auth ConfigMap.\n"
         jsonData['진단결과'] = "취약"
     else:
-        result = "System:masters role not found in aws-auth ConfigMap, which is good practice.\n"
+        result = "OK: System:masters role not found in aws-auth ConfigMap, which is good practice.\n"
         jsonData['진단결과'] = "양호"
 except subprocess.CalledProcessError as e:
     result = f"Failed to check aws-auth ConfigMap: {e}\n"
