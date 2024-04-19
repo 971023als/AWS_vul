@@ -1,4 +1,8 @@
-#!/bin/bash
+#!usr/bin/python3
+
+import boto3
+import json
+from datetime import datetime, timezone
 
 {
   "분류": "운영 관리",
