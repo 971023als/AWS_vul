@@ -1,5 +1,8 @@
-#!/bin/bash
+#!usr/bin/python3
 
+import boto3
+import subprocess
+import json
 {
   "분류": "운영 관리",
   "코드": "4.15",
