@@ -1,5 +1,10 @@
+#!usr/bin/python3
+
 import boto3
-from botocore.exceptions import ClientError
+import json
+import os
+import subprocess
+from datetime import datetime, timezone
 
 def check_key_pairs_in_bucket(bucket_name):
     s3 = boto3.client('s3')

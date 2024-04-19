@@ -1,4 +1,10 @@
-#!/bin/bash
+#!usr/bin/python3
+
+import boto3
+import json
+import os
+import subprocess
+from datetime import datetime, timezone
 
 # 모든 인스턴스의 ID와 Key Pair 이름 가져오기
 aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,KeyName]' --output text
