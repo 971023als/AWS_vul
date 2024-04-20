@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,15 +12,14 @@ jsonData = {
     "위험도": "중요도 중",
     "진단항목": "RDS 서브넷 가용 영역 관리",
     "대응방안": {
-        "설명": "서브넷이란 하나의 IP 네트워크 주소를 지역적으로 나누어 이 하나의 네트워크 IP 주소가 실제로 여러 개의 서로 연결된 지역 네트워크로 사용할 수 있도록 하는 방법입니다. EC2 인스턴스와 RDS 상호 통신 시 필요하나, 불필요한 서브넷이 포함되어 있을 경우 보안성 위험을 발생시킬 수 있으므로 불필요한 서브넷의 유무를 관리해야 합니다.",
+        "설명": ("서브넷은 네트워크의 일부 영역을 구분하여 효율적인 트래픽 관리 및 보안 강화를 도모합니다. RDS 인스턴스와의 통신에 필요한 서브넷을 적절히 관리하는 것이 중요합니다."),
         "설정방법": [
-            "서브넷 그룹 설정 확인",
-            "서브넷 그룹 확인",
-            "연결된 서브넷 확인"
+            "AWS Management Console 또는 AWS CLI를 통해 RDS 서브넷 그룹 설정 검토",
+            "필요하지 않은 서브넷은 RDS 서브넷 그룹에서 제거"
         ]
     },
     "현황": [],
-    "진단결과": "양호"
+    "진단결과": "진단 필요"
 }
 
 def bar():
@@ -59,20 +61,19 @@ except Exception as e:
 # User input for RDS subnet group name
 subnet_group_name = input("Enter RDS subnet group name to check for unnecessary subnets: ")
 
-# Analyze the subnet group for unnecessary subnets (this is a placeholder for your actual logic)
-# Assume checking and logic are based on certain criteria, here it's simulated
-unnecessary_subnets_count = 0  # This should be determined by actual criteria
+# Analyze the subnet group for unnecessary subnets
+# Placeholder for real logic that checks for unnecessary subnets based on criteria
+unnecessary_subnets_count = 0  # Simulated for example
 
 if unnecessary_subnets_count == 0:
-    print(f"No unnecessary subnets found in the subnet group '{subnet_group_name}'.")
+    result = "No unnecessary subnets found in the subnet group '{}'. Setting is satisfactory.".format(subnet_group_name)
     jsonData['진단결과'] = "양호"
 else:
-    print(f"Unnecessary subnets found in the subnet group '{subnet_group_name}'.")
+    result = "Unnecessary subnets found in the subnet group '{}'. Review needed.".format(subnet_group_name)
     jsonData['진단결과'] = "취약"
 
 # Log results
-result_message = f"Diagnosis result for '{subnet_group_name}': {jsonData['진단결과']}"
-log_message(result_message, log_file_name)
+log_message(result, log_file_name)
 
 bar()
 

@@ -1,8 +1,10 @@
-#!/bin/bash
+#!/usr/python3
 
-import subprocess
 import json
-import boto3
+import os
+import stat
+import pwd
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -11,14 +13,11 @@ jsonData = {
     "위험도": "중요도 상",
     "진단항목": "EKS Pod 보안 정책 관리",
     "대응방안": {
-        "설명": ("Pod 보안을 제어하기 위해 쿠버네티스는 (버전 1.23부터) Pod Security Standards(PSS)에 설명된 보안 제어를 구현하는 기본 제공 "
-                 "어드미션 컨트롤러인 Pod Security Admission (PSA)을 제공합니다. 이는 Amazon Elastic Kubernetes Service(EKS)에서 활성화되어 있으며, "
-                 "Pod Security Standards는 Kubernetes Cluster에서 실행되는 모든 Pod에 대한 일관된 보안 수준을 유지합니다."),
+        "설명": "EKS에서 Pod 보안을 제어하기 위한 설정은 시스템의 보안을 강화하고 취약성을 줄입니다. 쿠버네티스의 Pod Security Admission (PSA)을 이용하여, 특정 보안 기준에 따라 Pod 생성을 제한할 수 있습니다.",
         "설정방법": [
-            "네임스페이스 내 PSS / PSA 설정 및 확인",
-            "PSS / PSA를 적용하기 위한 네임스페이스 생성",
-            "생성된 네임스페이스 라벨 내 PSS / PSA 적용 (enforce=restricted)",
-            "네임스페이스 내 파드 생성 시도를 통해 PSS / PSA 적용 확인 (파드 생성 실패)"
+            "EKS 클러스터 내에서 PSA 설정 확인",
+            "PSA 정책을 적용하여 클러스터 내의 네임스페이스 설정",
+            "적절한 네임스페이스 라벨 지정 및 정책 테스트"
         ]
     },
     "현황": [],
@@ -43,7 +42,7 @@ bar()
 
 # Log initial information
 code = "[3.9] EKS Pod 보안 정책 관리"
-initial_message = f"{code}\n[양호]: PSA 설정이 적절하게 구성된 경우\n[취약]: PSA 설정이 적절하게 구성되지 않은 경우\n"
+initial_message = f"{code}\n[양호]: PSA 설정이 적절한 경우\n[취약]: PSA 설정이 부적절한 경우\n"
 log_message(initial_message, log_file_name)
 
 bar()
@@ -52,7 +51,7 @@ bar()
 try:
     subprocess.check_output(["kubectl", "--version"])
 except subprocess.CalledProcessError:
-    print("kubectl is not installed. Please install kubectl to run this script.")
+    print("kubectl is not installed. Please install kubectl to proceed.")
     exit(1)
 
 # AWS SDK setup
@@ -61,32 +60,32 @@ eks = boto3.client('eks')
 # Fetching all EKS clusters
 try:
     clusters = eks.list_clusters()
-    print("EKS Clusters found:")
+    print("Available EKS Clusters:")
     for cluster in clusters['clusters']:
         print(cluster)
 except Exception as e:
-    print("Failed to retrieve EKS clusters or no clusters found. Error:", str(e))
+    print("Failed to retrieve EKS clusters. Error:", str(e))
     exit(1)
 
 # User input for EKS cluster name
-cluster_name = input("Enter EKS cluster name to check the Pod Security Policies: ")
+cluster_name = input("Enter EKS cluster name to check the Pod Security Admission settings: ")
 
 # Configure kubectl to use the selected EKS cluster
 subprocess.run(["aws", "eks", "update-kubeconfig", "--name", cluster_name])
 
-# Check if Pod Security Admission (PSA) is enabled
+# Check PSA settings
 try:
     psa_status = subprocess.check_output(
-        ["kubectl", "get", "configurations", "pod-security.admission.config.k8s.io", "-o=jsonpath='{.spec.modes}'"]
+        ["kubectl", "get", "psa", "-o=jsonpath='{.items[*].spec.enforce}'", "--all-namespaces"]
     ).decode('utf-8')
-    if not psa_status:
-        print("Pod Security Admission is not configured.")
-        jsonData['진단결과'] = "취약"
-    else:
-        print(f"Pod Security Admission is configured with modes: {psa_status.strip('\"')}")
+    if 'enforce=restricted' in psa_status:
+        print("PSA settings are properly configured.")
         jsonData['진단결과'] = "양호"
+    else:
+        print("PSA settings are not properly configured.")
+        jsonData['진단결과'] = "취약"
 except subprocess.CalledProcessError as e:
-    print(f"Error checking PSA settings: {str(e)}")
+    print(f"Failed to check PSA settings: {str(e)}")
     jsonData['진단결과'] = "취약"
 
 # Log results

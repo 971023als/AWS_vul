@@ -1,6 +1,9 @@
-#!/bin/bash
+#!/usr/python3
+
 import boto3
 import json
+import os
+import subprocess
 
 # Python dictionary for JSON data
 jsonData = {
@@ -9,12 +12,12 @@ jsonData = {
     "위험도": "중요도 중",
     "진단항목": "S3 버킷/객체 접근 관리",
     "대응방안": {
-        "설명": "S3 버킷의 경우 리소스(버킷)를 생성한 소유자에 대해 리소스 액세스가 가능하며, 액세스 정책을 별도로 설정하여 다른 사람에게 액세스 권한을 부여할 수 있습니다. 퍼블릭 액세스 차단 설정이 되지 않을 경우, 외부로부터 버킷 및 객체가 노출되므로 안전한 버킷/객체 접근을 위해 목적에 맞는 접근 설정을 해야 합니다.",
+        "설명": ("S3 버킷에 대한 액세스 정책을 적절하게 설정하여 퍼블릭 액세스를 차단함으로써 외부로부터의 무단 접근을 방지합니다. "
+                 "이는 데이터의 안전성을 보장하며, 퍼블릭 액세스 차단 설정이 중요한 보안 조치입니다."),
         "설정방법": [
-            "서비스 > S3 > 퍼블릭 액세스 차단을 위한 계정 설정 내 상태 확인",
-            "서비스 > S3 > 퍼블릭 액세스 차단을 위한 계정 설정 > 편집 (비활성화 시)",
-            "모든 퍼블릭 액세스 차단 활성화",
-            "서비스 > S3 > 버킷 > 설정된 버킷 선택 > 권한 > ACL(액세스 제어 목록) 확인 및 편집 (기타 권한 존재 시 불필요 권한 비활성화)"
+            "AWS Management Console을 통해 S3 서비스에 접속",
+            "버킷 선택 후 '권한' 탭에서 퍼블릭 액세스 차단 설정 확인 및 수정",
+            "퍼블릭 액세스를 차단하는 모든 설정 활성화"
         ]
     },
     "현황": [],
@@ -48,28 +51,32 @@ bar()
 s3 = boto3.client('s3')
 
 # Fetching all S3 buckets
-buckets = s3.list_buckets()
+response = s3.list_buckets()
 print("Available S3 Buckets:")
-for bucket in buckets['Buckets']:
+for bucket in response['Buckets']:
     print(bucket['Name'])
 
 # User input for S3 bucket name
-bucket_name = input("Enter S3 bucket name to check: ")
+bucket_name = input("Enter S3 bucket name to check its public access settings: ")
 
-# Check public access settings for the specific S3 bucket
+# Check public access block settings for the specified S3 bucket
 try:
     public_access_block = s3.get_public_access_block(Bucket=bucket_name)
     settings = public_access_block['PublicAccessBlockConfiguration']
-    print("Public Access Settings for '{}':".format(bucket_name))
+    print("Public Access Block Settings for '{}':".format(bucket_name))
     print(json.dumps(settings, indent=2))
-    if settings.get('BlockPublicAcls', False):
+    if all(value for value in settings.values()):
         result = "Public access is properly blocked for '{}'. Setting is satisfactory.".format(bucket_name)
         jsonData['진단결과'] = "양호"
     else:
         result = "Public access is not properly blocked for '{}'. Setting is vulnerable.".format(bucket_name)
         jsonData['진단결과'] = "취약"
+except s3.exceptions.NoSuchPublicAccessBlockConfiguration:
+    result = "No public access block configuration found for '{}'.".format(bucket_name)
+    jsonData['진단결과'] = "취약"
 except Exception as e:
-    result = str(e)
+    result = "Error checking public access settings for '{}': {}".format(bucket_name, str(e))
+    jsonData['진단결과'] = "에러 발생"
 
 # Log results
 log_message(result, log_file_name)
